@@ -1,12 +1,39 @@
 import uuid
 
+import httpx
 import psycopg
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
+from app.db import get_session
+from app.main import app
 
 # psycopg wants a plain "postgresql://" URL, not SQLAlchemy's "+driver" form.
 RAW_TEST_DSN = settings.test_database_url_sync.replace("postgresql+psycopg://", "postgresql://")
+
+# NullPool: each pytest-asyncio test function runs its own event loop, but a
+# pooled asyncpg connection is bound to the loop it was created on -- reusing
+# one across tests raises "another operation is in progress". A fresh
+# connection per checkout sidesteps that.
+_test_engine = create_async_engine(settings.test_database_url, future=True, poolclass=NullPool)
+_TestSessionLocal = async_sessionmaker(_test_engine, expire_on_commit=False)
+
+
+async def _override_get_session():
+    async with _TestSessionLocal() as session:
+        yield session
+
+
+app.dependency_overrides[get_session] = _override_get_session
+
+
+@pytest.fixture()
+async def client():
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
 def new_connection() -> psycopg.Connection:
@@ -31,7 +58,7 @@ def _clean_tables():
     conn = new_connection()
     conn.autocommit = True
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE appointments, patients, practitioners CASCADE")
+        cur.execute("TRUNCATE appointments, working_hours, patients, practitioners CASCADE")
     conn.close()
     yield
 
@@ -46,6 +73,21 @@ def practitioner_id(db_conn) -> uuid.UUID:
         row_id = cur.fetchone()[0]
     db_conn.commit()
     return row_id
+
+
+@pytest.fixture()
+def add_working_hours(db_conn):
+    def _add(practitioner_id, day_of_week, start_time, end_time, tz_name):
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO working_hours "
+                "(practitioner_id, day_of_week, start_time, end_time, timezone) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (practitioner_id, day_of_week, start_time, end_time, tz_name),
+            )
+        db_conn.commit()
+
+    return _add
 
 
 @pytest.fixture()
