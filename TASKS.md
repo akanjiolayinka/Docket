@@ -16,9 +16,9 @@ Work top to bottom. Each phase should be a separate set of commits / Claude Code
 - [x] Timezone conversion at the API boundary — write a test with a practitioner and patient in different timezones
 
 ## Phase 3 — Booking CRUD
-- [ ] `POST /appointments` (wrapped in a transaction; catches the exclusion-constraint violation and returns a clean 409)
-- [ ] `GET /appointments/{id}`, `PATCH /appointments/{id}` (cancel/reschedule)
-- [ ] Outbox table + write-on-booking logic
+- [x] `POST /appointments` (wrapped in a transaction; catches the exclusion-constraint violation and returns a clean 409)
+- [x] `GET /appointments/{id}`, `PATCH /appointments/{id}` (cancel/reschedule)
+- [x] Outbox table + write-on-booking logic
 
 ## Phase 4 — Local dev environment
 - [ ] Dockerfile for the API

@@ -58,7 +58,9 @@ def _clean_tables():
     conn = new_connection()
     conn.autocommit = True
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE appointments, working_hours, patients, practitioners CASCADE")
+        cur.execute(
+            "TRUNCATE appointments, outbox, working_hours, patients, practitioners CASCADE"
+        )
     conn.close()
     yield
 

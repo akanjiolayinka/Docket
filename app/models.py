@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, time
 
 from sqlalchemy import CheckConstraint, ForeignKey, String, Time, func, text
-from sqlalchemy.dialects.postgresql import ExcludeConstraint, TSTZRANGE, UUID
+from sqlalchemy.dialects.postgresql import JSONB, ExcludeConstraint, TSTZRANGE, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Enum as SAEnum
 
@@ -124,3 +124,21 @@ class Appointment(Base):
             name="appointments_no_overlap_per_practitioner",
         ),
     )
+
+
+class Outbox(Base):
+    """Transactional outbox: written in the same transaction as the booking
+    write it accompanies. A separate worker polls rows where
+    published_at IS NULL and publishes them to RabbitMQ -- nothing in the
+    request path talks to the queue directly, so a rolled-back transaction
+    never leaves an event with no matching booking."""
+
+    __tablename__ = "outbox"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(nullable=True)
