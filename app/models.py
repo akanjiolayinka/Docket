@@ -1,9 +1,9 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 
-from sqlalchemy import ForeignKey, String, func, text
-from sqlalchemy.dialects.postgresql import ExcludeConstraint, TSTZRANGE, UUID
+from sqlalchemy import CheckConstraint, ForeignKey, String, Time, func, text
+from sqlalchemy.dialects.postgresql import JSONB, ExcludeConstraint, TSTZRANGE, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Enum as SAEnum
 
@@ -47,6 +47,39 @@ class Practitioner(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="practitioner")
+    working_hours: Mapped[list["WorkingHours"]] = relationship(back_populates="practitioner")
+
+
+class WorkingHours(Base):
+    """A recurring weekly working-hours rule for a practitioner.
+
+    start_time/end_time are wall-clock local time in `timezone` (an IANA
+    name, e.g. "America/New_York") -- not UTC. The slot generator converts
+    them to UTC per calendar date, since a fixed local time is a different
+    UTC instant depending on the date (DST).
+    """
+
+    __tablename__ = "working_hours"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    practitioner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("practitioners.id"), nullable=False
+    )
+    # date.weekday() convention: 0 = Monday ... 6 = Sunday.
+    day_of_week: Mapped[int] = mapped_column(nullable=False)
+    start_time: Mapped[time] = mapped_column(Time, nullable=False)
+    end_time: Mapped[time] = mapped_column(Time, nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+
+    practitioner: Mapped["Practitioner"] = relationship(back_populates="working_hours")
+
+    __table_args__ = (
+        CheckConstraint("day_of_week BETWEEN 0 AND 6", name="working_hours_day_of_week_range"),
+        CheckConstraint("start_time < end_time", name="working_hours_start_before_end"),
+    )
 
 
 class Appointment(Base):
@@ -91,3 +124,21 @@ class Appointment(Base):
             name="appointments_no_overlap_per_practitioner",
         ),
     )
+
+
+class Outbox(Base):
+    """Transactional outbox: written in the same transaction as the booking
+    write it accompanies. A separate worker polls rows where
+    published_at IS NULL and publishes them to RabbitMQ -- nothing in the
+    request path talks to the queue directly, so a rolled-back transaction
+    never leaves an event with no matching booking."""
+
+    __tablename__ = "outbox"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(nullable=True)

@@ -9,16 +9,16 @@ Work top to bottom. Each phase should be a separate set of commits / Claude Code
 - [x] Write a test that fires two concurrent overlapping booking attempts and asserts exactly one succeeds
 
 ## Phase 2 — Availability API
-- [ ] Model recurring working hours per practitioner
-- [ ] Slot generator (working hours → 30-min slots) in UTC
-- [ ] Subtract existing pending/accepted appointments from generated slots
-- [ ] `GET /practitioners/{id}/availability?date=` endpoint
-- [ ] Timezone conversion at the API boundary — write a test with a practitioner and patient in different timezones
+- [x] Model recurring working hours per practitioner
+- [x] Slot generator (working hours → 30-min slots) in UTC
+- [x] Subtract existing pending/accepted appointments from generated slots
+- [x] `GET /practitioners/{id}/availability?date=` endpoint
+- [x] Timezone conversion at the API boundary — write a test with a practitioner and patient in different timezones
 
 ## Phase 3 — Booking CRUD
-- [ ] `POST /appointments` (wrapped in a transaction; catches the exclusion-constraint violation and returns a clean 409)
-- [ ] `GET /appointments/{id}`, `PATCH /appointments/{id}` (cancel/reschedule)
-- [ ] Outbox table + write-on-booking logic
+- [x] `POST /appointments` (wrapped in a transaction; catches the exclusion-constraint violation and returns a clean 409)
+- [x] `GET /appointments/{id}`, `PATCH /appointments/{id}` (cancel/reschedule)
+- [x] Outbox table + write-on-booking logic
 
 ## Phase 4 — Local dev environment
 - [ ] Dockerfile for the API
